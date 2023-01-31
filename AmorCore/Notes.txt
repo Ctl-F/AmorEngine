@@ -1,0 +1,31 @@
+Teris Engine!!!
+
+IRenderable/RendererBase
+	Has the methods needed to initialize graphics pipelines (both pre and post window creation)
+	Theoretically this should be enough to allow Amor (posible Cortex) to work with any graphics
+	api that is compatible with glfw. Obviously the main renderers (2d and 3d) are going to be
+	written in opengl.
+
+AmorCore won't include the 2d/3d renderers out of the box but they'll be available as extensions/single header file libraries 
+that implement the renderer base using the core library. Renderers are customizable beyond the out-of-the-box renderers
+
+
+Entity Management:
+------------------
+Quad/Oct Tree
+GameObject -> Update, Render, OptIn(Pre/Post ...)
+
+
+
+Mesh/Vertex/Shader Management:
+------------------------------
+[Pixel Renderer]
+Managed, 4 vertices, image data written to a buffer in pixel form. Shader is just a raw passthrough shader
+with a couple parameters (color blend, skew, etc) Any primitives will have to be software rasterized to the
+frame buffer. Resolution is customizable
+
+[Renderer 2D]
+User specifies quads for sprites. Shaders can be specified. Triangle based geometry is also enabled.
+
+[Renderer 3D]
+Meshed based rendering
