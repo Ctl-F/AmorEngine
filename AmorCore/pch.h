@@ -19,4 +19,6 @@
 #include <math.h>
 #include <stdexcept>
 
+#include "stb_image.h"
+
 #endif //PCH_H

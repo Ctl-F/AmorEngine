@@ -86,8 +86,12 @@ namespace amor {
 			}
 			static Color from_rgb_vec(const math::Vec3f& vec);
 
-			inline bool operator==(const Color& o) {
+			inline bool operator==(const Color& o) const {
 				return r == o.r && g == o.g && b == o.b && a == o.a;
+			}
+
+			inline bool operator!=(const Color& o) const {
+				return !(o == *this);
 			}
 		};
 
@@ -101,6 +105,35 @@ namespace amor {
 		enum class BlendMode {
 			None = 0,
 			Normal,
+		};
+
+		constexpr u32 BASE_FONT_SIZE = 12;
+
+
+		class Font {
+		public:
+			virtual Texture& get_char(char letter) = 0;
+			virtual math::Rect get_size(char letter) = 0;
+			virtual math::Rect get_size(const char* string);
+		};
+
+		class PixelFont : public Font {
+		public:
+			PixelFont();
+			PixelFont(const std::string& filename);
+			~PixelFont();
+
+			Texture& get_char(char letter) override;
+			math::Rect get_size(char letter) override;
+
+		protected:
+			void load(const std::string& filename);
+			void load_default();
+			void gen_null_texture();
+
+		protected:
+			Texture* m_NullTexture;
+			Texture* m_TextureAtlas[256];
 		};
 
 		class PrimitiveContext2D {
@@ -118,6 +151,7 @@ namespace amor {
 			void Draw(i32 x, i32 y, const Color& col);
 			void Blit(i32 x, i32 y, const Texture& tex);
 			void BlitUpscaled(i32 x, i32 y, const Texture& tex, i32 scaleX, i32 scaleY);
+			void DrawText(i32 x, i32 y, const std::string& data, Font& font);
 
 			void SetBlending(BlendMode mode);
 
@@ -197,6 +231,10 @@ namespace amor {
 			void center_on_display(i32 displayNo = PRIMARY_MONITOR);
 			void fullscreen_on_display(bool fullscreen, i32 displayNo = PRIMARY_MONITOR);
 
+			void refresh_context();
+
+			inline bool is_fullscreen() const { return m_IsFullscreen; }
+
 			double fps() const;
 
 			const amor::math::Rect& size() const;
@@ -213,7 +251,7 @@ namespace amor {
 			std::string m_Title;
 			amor::math::Rect m_Size;
 			input::Input* m_Input;
-
+			
 		protected:
 			void refresh_window_title();
 
@@ -222,13 +260,13 @@ namespace amor {
 
 		private:
 			GLFWmonitor* select_monitor(i32 monitor) const;
-
+			
 		private:
 			GLFWwindow* m_WindowHandle;
 			RendererBase* m_RendererHandle;
 			util::Timer* m_Timer, *m_FpsTimer;
 			double m_Fps;
-			
+			bool m_IsFullscreen = false;
 		};
 
 		// base class for all renderers. This allows us to support a variety of renderers and rendering apis without having to change

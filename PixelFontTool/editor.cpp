@@ -57,7 +57,7 @@ Move::Move() {
 	icon.DrawLine(8, 0, 8, 16, white);
 	icon.DrawLine(7, 0, 7, 16, white);
 	icon.DrawLine(0, 8, 16, 8, white);
-	icon.DrawLine(0, 9, 16, 9, white);
+	icon.DrawLine(0, 7, 16, 7, white);
 }
 
 void Move::ToolUpdate(input::Input& input, graphics::PrimitiveContext2D& ctx, const math::Vec3f& cell) {

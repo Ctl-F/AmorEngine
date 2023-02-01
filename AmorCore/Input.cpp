@@ -42,7 +42,7 @@ namespace amor{
 				if (!KeyEnumValues.contains(i)) continue;
 
 				m_LastKeyFrame[i] = m_CurrentKeyFrame[i];
-				m_LastKeyFrame[i] = glfwGetKey(m_Handle->internal_ptr(), i) == STATE_PRESSED;
+				m_CurrentKeyFrame[i] = glfwGetKey(m_Handle->internal_ptr(), i) == STATE_PRESSED;
 			}
 			for (u32 i = 0; i < (u32)MouseButton::FIMKEY; i++) {
 				m_LastMouseFrame[i] = m_CurrentMouseFrame[i];

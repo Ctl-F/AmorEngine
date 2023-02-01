@@ -64,6 +64,7 @@ namespace amor {
 			bool overlaps(const Rect& r) const;
 
 			inline Vec3f origin() const { return { (real)x, (real)y, 0.0 }; }
+			inline Vec3f size() const { return { (real)width, (real)height, 0.0 }; }
 
 			inline i32 x2() const { return x + width; }
 			inline i32 y2() const { return y + height; }
