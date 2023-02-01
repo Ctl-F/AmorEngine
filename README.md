@@ -3,7 +3,7 @@ Light weight C++ game framework designed around flexibility and ease of use.
 
 * Open Renderer Interface: While providing several opt-in renderers out of the box, this means that a renderer for any framework (that is compatible with glfw) can be implemented. Need a vulkan implmentation? No problem! Want to implement a metal renderer? You got it!
 * Opt-In renderers: The actual renderer implementations are done in single headerfile format so as to minimize bloat. If you want to work with the pixel renderer without worrying about 3d, you only include that renderer and the 3d renderer won't add any additional bloat to your application.
-* Unified GUI framework: Design your gui once and have it work on all the out-of-the-box renderers provided without having to change your code each time making guis reusible.
+* --Unified GUI framework: Design your gui once and have it work on all the out-of-the-box renderers provided without having to change your code each time making guis reusible.-- Frameworks such as DearImGui are perfectly integratible with the renderers therefore there is no need to reinvent the wheel with a gui framework.
 
 
 ## The Renderers:
