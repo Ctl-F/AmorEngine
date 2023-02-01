@@ -126,6 +126,8 @@ namespace amor {
 			Texture& get_char(char letter) override;
 			math::Rect get_size(char letter) override;
 
+			static PixelFont& font_default();
+
 		protected:
 			void load(const std::string& filename);
 			void load_default();

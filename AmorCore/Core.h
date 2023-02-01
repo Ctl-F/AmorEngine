@@ -72,5 +72,16 @@ namespace amor {
 		public:
 			i32 x, y, width, height;
 		};
+	
+	
+		template<typename number> inline number max(number a, number b) {
+			return (a > b) ? a : b;
+		}
+		template<typename number> inline number min(number a, number b) {
+			return (a < b) ? a : b;
+		}
+		template<typename number> inline number clamp(number a, number minv, number maxv) {
+			return max(min(a, maxv), minv);
+		}
 	}
 }

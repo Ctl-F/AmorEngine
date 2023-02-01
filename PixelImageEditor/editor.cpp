@@ -6,6 +6,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+
+// TODO: Fix Undo Steps
 ImageEditor::ImageEditor() :
 	graphics::WindowBase(&m_Renderer, "IMGui Renderer", graphics::Resolution{ 640, 480, SCALE, SCALE }),
 	m_Renderer{ 640, 480, SCALE, SCALE } {
@@ -14,9 +16,17 @@ ImageEditor::ImageEditor() :
 	m_Tools.push_back(new EyeDropper());
 	m_Tools.push_back(new FloodFill());
 	m_Tools.push_back(new Blend());
+	m_Tools.push_back(new MaskBrush());
 
 	m_CurrentTool = 0;
 	m_Texture = new graphics::Texture{ 32, 32 };
+	m_Mask = new graphics::Texture{ 32, 32 };
+
+	for (u32 i = 0; i < 32 * 32; i++) {
+		m_Mask->data()[i] = {255, 255, 255, 64};
+	}
+
+	m_Texture->GetContext().Clear({ 255, 255, 255, 255 });
 
 }
 ImageEditor::~ImageEditor() {
@@ -31,38 +41,41 @@ ImageEditor::~ImageEditor() {
 	if (m_Texture != nullptr) {
 		delete m_Texture;
 	}
+	if (m_Mask != nullptr) {
+		delete m_Mask;
+	}
+}
+
+math::Rect ImageEditor::calculate_image_location() {
+	i32 texWidth = m_Texture->width() * m_Zoom;
+	i32 texHeight = m_Texture->height() * m_Zoom;
+	i32 originX = (m_Size.width / (2 * SCALE)) - (texWidth / 2);
+	i32 originY = (m_Size.height / (2 * SCALE)) - (texHeight / 2);
+	return { originX, originY, texWidth, texHeight };
 }
 
 bool ImageEditor::mouse_on_canvas() {
-	math::Vec3f center = m_Size.size() / 2.0f / SCALE;
-	float texWidth = m_Texture->width() * m_Zoom;
-	float texHeight = m_Texture->height() * m_Zoom;
-
-	center.x -= texWidth / 2;
-	center.y -= texHeight / 2;
-
-	math::Rect canvas{ (i32)center.x, (i32)center.y, (i32)texWidth, (i32)texHeight };
+	math::Rect canvas = calculate_image_location();
 	return canvas.contains(m_Input->mouse_position());
 }
 
 math::Vec3f ImageEditor::get_pixel() {
-	math::Vec3f center = m_Size.size() / 2.0f / SCALE;
 	math::Vec3f mouse = m_Input->mouse_position() / SCALE;
-
-	float texWidth = m_Texture->width() * m_Zoom;
-	float texHeight = m_Texture->height() * m_Zoom;
-
-	center.x -= texWidth / 2;
-	center.y -= texHeight / 2;
-
-	math::Rect canvas{ (i32)center.x, (i32)center.y, (i32)texWidth, (i32)texHeight };
+	math::Rect canvas = calculate_image_location();
 
 	if (canvas.contains(mouse)) {
-		return ((mouse - canvas.origin()) / m_Zoom).floor();
+		return ((mouse - canvas.origin()) / (float)m_Zoom).floor();
 	}
 	else {
 		return math::Vec3f{ 0, 0, -1 };
 	}
+}
+
+bool ImageEditor::in_mask(i32 x, i32 y) {
+	if (x < 0 || x >= m_Texture->width() || y < 0 || y >= m_Texture->height()) {
+		return false;
+	}
+	return m_Mask->data()[x + y * m_Texture->width()].r == 255;
 }
 
 void ImageEditor::push_undo_step() {
@@ -211,7 +224,15 @@ void ImageEditor::OnUserRender(graphics::RendererBase* _) {
 		}
 	}
 	ImGui::Checkbox("Show Grid", &m_showGrid);
+	ImGui::Checkbox("Show Mask", &m_showMask);
+	ImGui::Checkbox("Tile Draw", &m_tileDraw);
 	ImGui::End();
+
+	std::string zoom = std::to_string(m_Zoom * 100) + "%";
+	m_Renderer.DrawText(m_Size.width / 2 - 100, m_Size.height / 2 - 20, zoom, graphics::PixelFont::font_default());
+
+	m_Renderer.Blit(m_Size.width / 2 - m_Texture->width() - 10, 10, *m_Texture);
+
 
 	m_Tools[m_CurrentTool]->render_tool_options(*this);
 
@@ -234,9 +255,42 @@ void ImageEditor::draw_tex_center_zoomed() {
 
 	if (m_Zoom == 1) {
 		m_Renderer.Blit((i32)center.x, (i32)center.y, *m_Texture);
+
+		if (m_showMask) {
+			m_Renderer.SetBlending(graphics::BlendMode::Normal);
+			m_Renderer.Blit((i32)center.x, (i32)center.y, *m_Mask);
+			m_Renderer.SetBlending(graphics::BlendMode::None);
+		}
+
+		if (m_tileDraw) {
+			m_Renderer.Blit((i32)center.x - texWidth, (i32)center.y - texHeight, *m_Texture);
+			m_Renderer.Blit((i32)center.x , (i32)center.y - texHeight, *m_Texture);
+			m_Renderer.Blit((i32)center.x + texWidth, (i32)center.y - texHeight, *m_Texture);
+			m_Renderer.Blit((i32)center.x - texWidth, (i32)center.y, *m_Texture);
+			m_Renderer.Blit((i32)center.x + texWidth, (i32)center.y, *m_Texture);
+			m_Renderer.Blit((i32)center.x - texWidth, (i32)center.y + texHeight, *m_Texture);
+			m_Renderer.Blit((i32)center.x, (i32)center.y + texHeight, *m_Texture);
+			m_Renderer.Blit((i32)center.x + texWidth, (i32)center.y + texHeight, *m_Texture);
+		}
 	}
 	else {
 		m_Renderer.BlitUpscaled((i32)center.x, (i32)center.y, *m_Texture, m_Zoom, m_Zoom);
+		if (m_showMask) {
+			m_Renderer.SetBlending(graphics::BlendMode::Normal);
+			m_Renderer.BlitUpscaled((i32)center.x, (i32)center.y, *m_Mask, m_Zoom, m_Zoom);
+			m_Renderer.SetBlending(graphics::BlendMode::None);
+		}
+
+		if (m_tileDraw) {
+			m_Renderer.BlitUpscaled((i32)center.x - texWidth, (i32)center.y - texHeight, *m_Texture, m_Zoom, m_Zoom);
+			m_Renderer.BlitUpscaled((i32)center.x, (i32)center.y - texHeight, *m_Texture, m_Zoom, m_Zoom);
+			m_Renderer.BlitUpscaled((i32)center.x + texWidth, (i32)center.y - texHeight, *m_Texture, m_Zoom, m_Zoom);
+			m_Renderer.BlitUpscaled((i32)center.x - texWidth, (i32)center.y, *m_Texture, m_Zoom, m_Zoom);
+			m_Renderer.BlitUpscaled((i32)center.x + texWidth, (i32)center.y, *m_Texture, m_Zoom, m_Zoom);
+			m_Renderer.BlitUpscaled((i32)center.x - texWidth, (i32)center.y + texHeight, *m_Texture, m_Zoom, m_Zoom);
+			m_Renderer.BlitUpscaled((i32)center.x, (i32)center.y + texHeight, *m_Texture, m_Zoom, m_Zoom);
+			m_Renderer.BlitUpscaled((i32)center.x + texWidth, (i32)center.y + texHeight, *m_Texture, m_Zoom, m_Zoom);
+		}
 	}
 }
 
@@ -264,100 +318,3 @@ void ImageEditor::draw_grid() {
 	m_Renderer.SetBlending(graphics::BlendMode::None);
 }
 
-void Brush::update(ImageEditor& editor, input::Input& input) {
-	math::Vec3f cell = editor.get_pixel();
-	graphics::PrimitiveContext2D ctx = editor.get_tex()->GetContext();
-	graphics::Color color;
-
-	if (cell.z == 0) {
-		if (input.mouse_check_pressed(input::MouseButton::Left) && (action_detail == input::MouseButton::FIMKEY || action_detail == input::MouseButton::Left)) {
-			if (input.mouse_check_just_pressed(input::MouseButton::Left)) {
-				action_just_started = false;
-				action_detail = input::MouseButton::Left;
-			}
-
-			color = graphics::Color::from_rgb_vec({ editor.m_PrimaryRgbColor[0],  editor.m_PrimaryRgbColor[1],  editor.m_PrimaryRgbColor[2] });
-			
-			ctx.Draw((i32)cell.x, (i32)cell.y, color);
-		}
-		else if (input.mouse_check_pressed(input::MouseButton::Right) && (action_detail == input::MouseButton::FIMKEY || action_detail == input::MouseButton::Right)) {
-			if (input.mouse_check_just_pressed(input::MouseButton::Right)) {
-				action_just_started = false;
-				action_detail = input::MouseButton::Right;
-			}
-
-			color = graphics::Color::from_rgb_vec({ editor.m_SecondaryRgbColor[0],  editor.m_SecondaryRgbColor[1],  editor.m_SecondaryRgbColor[2] });
-
-			ctx.Draw((i32)cell.x, (i32)cell.y, color);
-		}
-	}
-
-	if (input.mouse_check_just_released(action_detail)) {
-		action_just_started = true;
-		editor.push_undo_step();
-	}
-}
-
-void Brush::render_tool_options(ImageEditor& editor) {
-	ImGui::Begin("Brush");
-
-	ImGui::ColorPicker3("Primary Color", editor.m_PrimaryRgbColor);
-	ImGui::ColorPicker3("Secondary Color", editor.m_SecondaryRgbColor);
-
-	ImGui::End();
-}
-
-const char* Brush::get_name() {
-	return "Brush";
-}
-
-void FloodFill::update(ImageEditor& editor, input::Input& input) {
-
-	math::Vec3f cell = editor.get_pixel();
-	graphics::PrimitiveContext2D ctx = editor.get_tex()->GetContext();
-	
-	bool doAction = false;
-	graphics::Color color;
-	graphics::Color baseColor = ctx.Get((i32)cell.x, (i32)cell.y);
-	if (cell.z == 0) {
-		if (input.mouse_check_just_released(input::MouseButton::Left)) {
-			color = graphics::Color::from_rgb_vec({ editor.m_PrimaryRgbColor[0],  editor.m_PrimaryRgbColor[1],  editor.m_PrimaryRgbColor[2] });
-			doAction = true;
-		}
-		else if (input.mouse_check_just_released(input::MouseButton::Right)) {
-			color = graphics::Color::from_rgb_vec({ editor.m_SecondaryRgbColor[0],  editor.m_SecondaryRgbColor[1],  editor.m_SecondaryRgbColor[2] });
-			doAction = true;
-		}
-	}
-
-	if (doAction) {
-		editor.push_undo_step();
-		flood_fill(ctx, (i32)cell.x, (i32)cell.y, color, baseColor);
-	}
-}
-
-void FloodFill::render_tool_options(ImageEditor& editor) {
-	ImGui::Begin("Bucket Fill");
-
-	ImGui::ColorPicker3("Primary Color", editor.m_PrimaryRgbColor);
-	ImGui::ColorPicker3("Secondary Color", editor.m_SecondaryRgbColor);
-
-	ImGui::End();
-}
-
-const char* FloodFill::get_name() {
-	return "Bucket Fill";
-}
-
-void FloodFill::flood_fill(graphics::PrimitiveContext2D& ctx, i32 x, i32 y, const graphics::Color& color, const graphics::Color& baseColor)
-{
-	if (color == baseColor) return;
-	if (ctx.Get(x, y) != baseColor) return;
-
-	ctx.Draw(x, y, color);
-
-	if (x - 1 >= 0) flood_fill(ctx, x - 1, y, color, baseColor);
-	if (x + 1 < ctx.width()) flood_fill(ctx, x + 1, y, color, baseColor);
-	if (y - 1 >= 0) flood_fill(ctx, x, y - 1, color, baseColor);
-	if (y + 1 < ctx.height()) flood_fill(ctx, x, y + 1, color, baseColor);
-}

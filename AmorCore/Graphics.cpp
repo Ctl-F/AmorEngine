@@ -445,9 +445,17 @@ namespace amor {
         Color PrimitiveContext2D::Blend(const Color& src, const Color& dest) {
             math::Vec3f a = src.to_rgb_vec();
             math::Vec3f b = dest.to_rgb_vec();
-            double alpha = src.a * 255.0;
+            double alpha = src.a / 255.0;
+            a = (a * alpha) + (b * (1.0 - alpha));
 
-            return Color::from_rgb_vec( (a * alpha) + (b * (1.0 - alpha)) );
+            if (a.x > 1.0f) a.x = 1.0f;
+            if (a.y > 1.0f) a.y = 1.0f;
+            if (a.z > 1.0f) a.z = 1.0f;
+            if (a.x < 0.0f) a.x = 0.0f;
+            if (a.y < 0.0f) a.y = 0.0f;
+            if (a.z < 0.0f) a.z = 0.0f;
+            
+            return Color::from_rgb_vec( a );
         }
 
         u32 PrimitiveContext2D::Index(i32 x, i32 y) {
@@ -836,6 +844,11 @@ namespace amor {
             context.DrawLine(BASE_FONT_SIZE, 0, 0, BASE_FONT_SIZE, { 255, 255, 255, 255 });*/
         }
 
+
+        PixelFont& PixelFont::font_default() {
+            static PixelFont s_font{};
+            return s_font;
+        }
 #pragma region DEFAULT FONT DATA
 #define BLANK "0C0C000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
         static const char* DEFAULT_FONT_DATA = "00" BLANK "01" BLANK "02" BLANK "03" BLANK "04" BLANK "05" BLANK "06" BLANK "07" BLANK "08" BLANK "09" BLANK "0A" BLANK "0B" BLANK "0C" BLANK "0D" BLANK "0E" BLANK "0F" BLANK
