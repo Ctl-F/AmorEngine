@@ -16,7 +16,7 @@ public:
 	BlendMatrix(BlendSize size);
 	~BlendMatrix();
 
-	void apply(ImageEditor& editor, i32 x, i32 y, graphics::PrimitiveContext2D& ctx);
+	void apply(ImageEditor& editor, i32 x, i32 y, graphics::PrimitiveContext2D& ctx, bool wrap);
 
 private:
 	BlendSize size;
@@ -25,8 +25,11 @@ private:
 
 class Tool {
 public:
+	virtual void start(ImageEditor& editor);
+	virtual void end(ImageEditor& editor);
 	virtual void update(ImageEditor& editor, amor::input::Input& input) = 0;
 	virtual void render_tool_options(ImageEditor& editor) = 0;
+	virtual void render_tool_info(ImageEditor& editor, graphics::PixelRenderer& renderer);
 	virtual const char* get_name() = 0;
 };
 
@@ -35,7 +38,7 @@ public:
 	void update(ImageEditor& editor, amor::input::Input& input) override;
 
 	void render_tool_options(ImageEditor& editor) override;
-
+	void render_tool_info(ImageEditor& editor, graphics::PixelRenderer& renderer) override;
 	const char* get_name() override;
 
 private:
@@ -50,12 +53,20 @@ private:
 
 class MaskBrush : public Tool {
 public:
-
+	void start(ImageEditor& editor) override;
+	void end(ImageEditor& editor) override;
 	void update(ImageEditor& editor, amor::input::Input& input) override;
 
 	void render_tool_options(ImageEditor& editor) override;
-
+	void render_tool_info(ImageEditor& editor, graphics::PixelRenderer& renderer) override;
 	const char* get_name() override;
+
+private:
+	void invert(graphics::Texture& tex);
+private:
+	i32 m_brushSize = 1;
+	bool m_isCircle = false;
+	bool m_wasShowMask = false;
 };
 
 class FloodFill : public Tool {
@@ -92,4 +103,5 @@ private:
 	float m_blendStrength = 0.5f;
 	math::Vec3f m_pMouse{ 0, 0 };
 	BlendMatrix m_Matrix{ BlendSize::x33 };
+	i32 m_wrap = 0;
 };

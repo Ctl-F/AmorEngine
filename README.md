@@ -12,6 +12,8 @@ This is the simplest in terms of understanding and using. This renderer provides
 
 ![PixelFontTool](https://github.com/Ctl-F/AmorEngine/blob/master/content/pixeltool.screenshot.png?raw=true)
 
+![Minesweeper](https://github.com/Ctl-F/AmorEngine/blob/master/content/minesweeper.png?raw=true)
+
 ### Renderer2D (future development)
 A step up from the Pixel Renderer this introduces vertices and 2d meshes into the mix while distancing slightly from the more direct pixel approach. This renderer provides access directly to the shaders and is a more accelerated 2d renderer than the Pixel Renderer.
 

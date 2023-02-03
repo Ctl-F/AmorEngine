@@ -1,8 +1,9 @@
 #pragma once
 #include "Common.h"
 #include "Core.h"
-
 #include <unordered_set>
+#include <unordered_map>
+#include <initializer_list>
 
 namespace amor {
 	namespace graphics {
@@ -21,7 +22,7 @@ namespace amor {
 			Minus = 45,
 			Period = 46,
 			Slash = 47,
-			K0 = 49, K1, K2, K3, K4, K5, K6, K7, K8, K9,
+			K0 = 48, K1, K2, K3, K4, K5, K6, K7, K8, K9,
 			Semicolon = 59,
 			Equal = 61,
 			A = 65, B, C, D, E, F, G, H,
@@ -151,5 +152,59 @@ namespace amor {
 
 			static std::unordered_set<u32> KeyEnumValues;
 		};
+	
+
+		enum class ActionStateType {
+			Pressed,
+			JustPressed,
+			Released,
+			JustReleased
+		};
+
+
+		class Action {
+			friend class ActionsManager;
+		public:
+			Action();
+			~Action();
+
+			inline bool is_activated() const { return m_isActive; }
+			inline bool is_just_activated() const { return m_isActive && !m_wasActive; }
+			inline bool is_deactivated() const { return !m_isActive; }
+			inline bool is_just_deactivated() const { return !m_isActive && m_wasActive; }
+
+			void add_key_option(Key key, ActionStateType type = ActionStateType::Pressed);
+			void begin_key_combo_option();
+			void end_key_combo_option();
+
+		protected:
+			bool evaluate(Input&);
+
+		private:
+			bool m_isCombo;
+			std::vector<std::vector<std::pair<Key, bool(Input::*)(Key)const>>> m_Options;
+			bool m_isActive, m_wasActive;
+		};
+
+		class ActionsManager {
+		public:
+			ActionsManager();
+			~ActionsManager();
+
+			void add_action(const std::string& name, const Action& action);
+			void add_action(const std::string& name, Key key, ActionStateType type = ActionStateType::Pressed);
+			void add_action(const std::string& name, std::initializer_list<std::pair<Key, ActionStateType>> list);
+
+			void update(Input& input);
+
+			bool is_activated(const std::string& name) const;
+			bool is_just_activated(const std::string& name) const;
+			bool is_deactivated(const std::string& name) const;
+			bool is_just_deactivated(const std::string& name) const;
+
+		private:
+			std::unordered_map<std::string, Action> m_Actions;
+		};
+
 	}
 }

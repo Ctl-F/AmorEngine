@@ -89,8 +89,140 @@ namespace amor{
 		}
 
 
+		Action::Action() : m_isActive(false), m_wasActive(false), m_isCombo(false) {
+
+		}
+
+		Action::~Action() {
+
+		}
+
+		void Action::add_key_option(Key key, ActionStateType type) {
+			std::vector<std::pair<Key, bool(Input::*)(Key)const>>* bucket = nullptr;
+			std::pair<Key, bool(Input::*)(Key)const> trigger;
+
+			switch (type) {
+			case ActionStateType::Pressed:
+				trigger = std::make_pair(key, &Input::key_check_pressed);
+				break;
+			case ActionStateType::JustPressed:
+				trigger = std::make_pair(key, &Input::key_check_just_pressed);
+				break;
+			case ActionStateType::Released:
+				trigger = std::make_pair(key, &Input::key_check_released);
+				break;
+			case ActionStateType::JustReleased:
+				trigger = std::make_pair(key, &Input::key_check_just_released);
+				break;
+			}
+
+			if (m_isCombo) {
+				bucket = &(m_Options[m_Options.size() - 1]);
+			}
+			else {
+				bucket = &(m_Options.emplace_back());
+			}
+			bucket->push_back(trigger);
+		}
 
 
+		void Action::begin_key_combo_option() {
+			m_isCombo = true;
+			if (m_Options.empty()) {
+				m_Options.emplace_back();
+			}
+		}
+
+		void Action::end_key_combo_option() {
+			m_isCombo = false;
+		}
+
+		bool Action::evaluate(Input& input) {
+			m_wasActive = m_isActive;
+			m_isActive = false;
+
+			for (size_t i = 0; i < m_Options.size(); i++) {
+				if (m_Options[i].empty()) {
+					continue;
+				}
+				
+				bool totalTrue = true;
+
+				for (size_t j = 0; j < m_Options[i].size(); j++) {
+					std::pair<Key, bool(Input::*)(Key)const>& entry = m_Options[i][j];
+
+					if(!CLASS_INVOKE(input, entry.second, entry.first)) {
+						totalTrue = false;
+						break;
+					}
+				}
+
+				if (totalTrue) {
+					m_isActive = true;
+					break;
+				}
+			}
+			return m_isActive;
+		}
+
+		ActionsManager::ActionsManager() {
+
+		}
+		ActionsManager::~ActionsManager() {
+
+		}
+
+		void ActionsManager::update(Input& input) {
+			for (auto& action : m_Actions) {
+				action.second.evaluate(input);
+			}
+		}
+
+
+		void ActionsManager::add_action(const std::string& name, const Action& action) {
+			m_Actions[name] = action;
+		}
+		void ActionsManager::add_action(const std::string& name, Key key, ActionStateType type) {
+			Action a;
+			a.add_key_option(key, type);
+
+			add_action(name, a);
+		}
+
+		void ActionsManager::add_action(const std::string& name, std::initializer_list<std::pair<Key, ActionStateType>> list) {
+			Action a;
+
+			for (auto p : list) {
+				a.add_key_option(p.first, p.second);
+			}
+
+			add_action(name, a);
+		}
+
+		bool ActionsManager::is_activated(const std::string& name) const {
+			if (m_Actions.contains(name)) {
+				return m_Actions.at(name).is_activated();
+			}
+			return false;
+		}
+		bool ActionsManager::is_deactivated(const std::string& name) const {
+			if (m_Actions.contains(name)) {
+				return m_Actions.at(name).is_deactivated();
+			}
+			return false;
+		}
+		bool ActionsManager::is_just_activated(const std::string& name) const {
+			if (m_Actions.contains(name)) {
+				return m_Actions.at(name).is_just_activated();
+			}
+			return false;
+		}
+		bool ActionsManager::is_just_deactivated(const std::string& name) const {
+			if (m_Actions.contains(name)) {
+				return m_Actions.at(name).is_deactivated();
+			}
+			return false;
+		}
 
 		// if you ever want to exclude a certain key from being polled then exclude it from the KeyEnumValues 
 		void Input::populate_keyenum() {

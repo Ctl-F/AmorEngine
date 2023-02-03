@@ -378,7 +378,7 @@ namespace amor {
 
             // offset pointer past the header and size info to the start of the compressed color buffer
             fileBuffer += offset;
-            uLongf colorBufferSize = (fileSize - offset);
+            uLongf colorBufferSize = (uLongf)(fileSize - offset);
 
             uLongf uncompressedSize = (width * height * 4);
             byte* uncompressedStream = new byte[uncompressedSize];
@@ -459,8 +459,8 @@ namespace amor {
         }
 
         u32 PrimitiveContext2D::Index(i32 x, i32 y) {
-            if (x < 0 || y < 0 || x >= m_Width || y >= m_Height) return -1;
-            return (y * m_Width + x);
+            if (x < 0 || y < 0 || x >= (i32)m_Width || y >= (i32)m_Height) return -1;
+            return (y * (i32)m_Width + x);
         }
 
         void PrimitiveContext2D::Coordinate(u32 index, i32& x, i32& y) {
@@ -472,17 +472,49 @@ namespace amor {
             std::fill(m_Pixels, m_Pixels + m_BufferLength, col);
         }
         void PrimitiveContext2D::FillRect(i32 x, i32 y, i32 width, i32 height, const Color& color) {
+            if (x < 0) {
+                width += x; // x is negative
+                x = 0;
+            }
+            if (y < 0) {
+                height += y;
+                y = 0;
+            }
+            if (x >= (i32)m_Width) {
+                return;
+            }
+            if (y >= (i32)m_Height) {
+                return;
+            }
+            if (x + width > (i32)m_Width) {
+                width -= (x + width) - (i32)m_Width;
+            }
+            if (y + height > (i32)m_Height) {
+                height -= (y + height) - (i32)m_Height;
+            }
+
+
             if ((int)m_BlendMode) {
-                for (u32 i = x; i < x+width; i++) {
-                    for (u32 j = y; j < y+height; j++) {
+                for (i32 i = x; i < x+width; i++) {
+                    for (i32 j = y; j < y+height; j++) {
                         DrawB(i, j, color);
                     }
                 }
             }
             else {
-                for (u32 j = 0; j < height; ++j) {
+                for (i32 j = 0; j < height; ++j) {
                     u32 startIndex = Index(x, y + j);
                     u32 endIndex = Index(x + width, y + j);
+
+                    if (startIndex == -1 && endIndex == -1) continue;
+                    if (y + j >= (i32)m_Height) return;
+
+                    if (startIndex == -1) {
+                        startIndex = Index(0, y + j);
+                    }
+                    else if (endIndex == -1) {
+                        endIndex = Index(m_Width - 1, y + j);
+                    }
 
                     std::fill(m_Pixels + startIndex, m_Pixels + endIndex, color);
                 }
@@ -533,7 +565,7 @@ namespace amor {
             else {
                 std::fill(m_Pixels + Index(x, y), m_Pixels + Index(x + width + 1, y), color);
                 std::fill(m_Pixels + Index(x, y + height), m_Pixels + Index(x + width + 1, y + height), color);
-                for (u32 j = 1; j < height; j++) {
+                for (i32 j = 1; j < height; j++) {
                     m_Pixels[Index(x, y + j)] = color;
                     m_Pixels[Index(x + width, y + j)] = color; // maybe -1 needed here? not sure
                 }
@@ -654,7 +686,7 @@ namespace amor {
         }
 
         void PrimitiveContext2D::BlitUpscaled(i32 x, i32 y, const Texture& tex, i32 scaleX, i32 scaleY) {
-            if (x >= m_Width || y >= m_Height) return;
+            if (x >= (i32)m_Width || y >= (i32)m_Height) return;
 
             i32 x2 = x + (tex.width() * scaleX);
             i32 y2 = y + (tex.height() * scaleY);
@@ -664,9 +696,9 @@ namespace amor {
 
             i32 drawX = x;
             i32 drawY = y;
-            for (i32 pi = 0; pi < tex.width(); ++pi) {
-                for (i32 pj = 0; pj < tex.height(); ++pj) {
-                    FillRect(drawX, drawY, scaleX, scaleY, data[pi + pj * tex.width()]);
+            for (i32 pi = 0; pi < (i32)tex.width(); ++pi) {
+                for (i32 pj = 0; pj < (i32)tex.height(); ++pj) {
+                    FillRect(drawX, drawY, scaleX, scaleY, data[pi + pj * (i32)tex.width()]);
                     drawY += scaleY;
                 }
                 drawX += scaleX;
@@ -675,7 +707,7 @@ namespace amor {
         }
 
         void PrimitiveContext2D::Blit(i32 x, i32 y, const Texture& tex) {
-            if (x >= m_Width || y >= m_Height) return;
+            if (x >= (i32)m_Width || y >= (i32)m_Height) return;
 
             // internal texture bounds
             amor::math::Rect bounds{ (i32)tex.width(), (i32)tex.height()};
@@ -691,11 +723,11 @@ namespace amor {
                 y = 0;
             }
 
-            if (x + bounds.width >= m_Width) {
-                bounds.width -= (x + bounds.width) - m_Width;
+            if (x + bounds.width >= (i32)m_Width) {
+                bounds.width -= (x + bounds.width) - (i32)m_Width;
             }
-            if (y + bounds.height >= m_Height) {
-                bounds.height -= (y + bounds.height) - m_Height;
+            if (y + bounds.height >= (i32)m_Height) {
+                bounds.height -= (y + bounds.height) - (i32)m_Height;
             }
 
             Color* data = tex.data();
@@ -714,6 +746,39 @@ namespace amor {
                     u32 myRowOffset = (y + j) * m_Width;
 
                     std::copy(data + textureRowOffset + bounds.x, data + textureRowOffset + bounds.x2(), m_Pixels + myRowOffset + x);
+                }
+            }
+        }
+
+        void PrimitiveContext2D::BlitCutout(i32 x, i32 y, const Texture& tex, const Color& color) {
+            if (x >= (i32)m_Width || y >= (i32)m_Height) return;
+            // internal texture bounds
+            amor::math::Rect bounds{ (i32)tex.width(), (i32)tex.height() };
+
+            if (x < 0) {
+                bounds.width += x;
+                bounds.x = -x;
+                x = 0;
+            }
+            if (y < 0) {
+                bounds.height += y;
+                bounds.y = -y;
+                y = 0;
+            }
+
+            if (x + bounds.width >= (i32)m_Width) {
+                bounds.width -= (x + bounds.width) - (i32)m_Width;
+            }
+            if (y + bounds.height >= (i32)m_Height) {
+                bounds.height -= (y + bounds.height) - (i32)m_Height;
+            }
+
+            Color* data = tex.data();
+
+            for (i32 i = bounds.x; i < bounds.x2(); i++) {
+                for (i32 j = bounds.y; j < bounds.y2(); j++) {
+                    if (data[i + j * tex.width()] == color) continue;
+                    CLASS_INVOKE(*this, DrawI, x + i, y + j, data[i + j * tex.width()]);
                 }
             }
         }
@@ -739,13 +804,14 @@ namespace amor {
                 }
 
                 Texture& tex = font.get_char(message[i]);
-                this->Blit(cursorX, cursorY, tex);
+                this->BlitCutout(cursorX, cursorY, tex, {0, 0, 0, 255});
                 cursorX += font.get_size(message[i]).width;
             }
         }
 
 #pragma endregion
 #pragma region PixelFont
+        Font::~Font() {}
         math::Rect Font::get_size(const char* string) {
             math::Rect size{ 0, 0 };
             i32 targetX = 0;

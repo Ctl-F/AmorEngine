@@ -112,6 +112,7 @@ namespace amor {
 
 		class Font {
 		public:
+			virtual ~Font();
 			virtual Texture& get_char(char letter) = 0;
 			virtual math::Rect get_size(char letter) = 0;
 			virtual math::Rect get_size(const char* string);
@@ -153,6 +154,7 @@ namespace amor {
 			void Draw(i32 x, i32 y, const Color& col);
 			void Blit(i32 x, i32 y, const Texture& tex);
 			void BlitUpscaled(i32 x, i32 y, const Texture& tex, i32 scaleX, i32 scaleY);
+			void BlitCutout(i32 x, i32 y, const Texture& tex, const Color& cutout);
 			void DrawText(i32 x, i32 y, const std::string& data, Font& font);
 
 			void SetBlending(BlendMode mode);
@@ -186,7 +188,6 @@ namespace amor {
 			void(amor::graphics::PrimitiveContext2D::*DrawI)(i32, i32, const Color&) = &PrimitiveContext2D::Draw;
 		};
 
-
 		class Texture {
 		public:
 			Texture();
@@ -209,6 +210,14 @@ namespace amor {
 			Color* m_Pixels;
 		};
 
+		class Sprite {
+
+		};
+
+		class TileMap {
+
+		};
+
 		// Base class for window creation, note that technically this is a valid stand alone window
 		// however the only interaction by default that is implemented is the closing. This is fine on its own
 		// for testing renderer implementation or even for some instances of static drawing but when any actual logic
@@ -225,7 +234,7 @@ namespace amor {
 
 			// for lazy resolution caclulation. Sets widow size to resolution * pixelSize;
 			WindowBase(RendererBase* renderer, const std::string& title, const Resolution& res);
-			~WindowBase();
+			virtual ~WindowBase();
 
 			void show();
 

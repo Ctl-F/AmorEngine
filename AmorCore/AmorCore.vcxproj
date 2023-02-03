@@ -149,6 +149,7 @@
     <ClInclude Include="Input.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PixelRenderer.h" />
+    <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="ShaderFactory.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
@@ -165,6 +166,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="ShaderFactory.cpp" />
     <ClCompile Include="stb_image.cpp" />
     <ClCompile Include="Util.cpp" />

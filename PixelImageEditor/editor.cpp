@@ -7,6 +7,74 @@
 #include <imgui_impl_opengl3.h>
 
 
+Dialog::Dialog(const std::string& title, const std::string& confirmString,
+	std::function<void()> confirmAction,
+	const std::string& declineString,
+	std::function<void()> declineAction,
+	const math::Rect& position,
+	bool allowEscapeDecline) : m_title(title), m_confirm(confirmString), m_decline(declineString),
+	m_confirmAction(confirmAction), m_declineAction(declineAction),
+	m_location(position),
+	m_allowEscape(allowEscapeDecline) {
+
+}
+Dialog::~Dialog(){
+
+}
+
+FileDialog::FileDialog(const std::string& title, const std::string& confirmString,
+	std::function<void()> confirmAction,
+	const std::string& declineString,
+	std::function<void()> declineAction,
+	const math::Rect& position,
+	bool allowEscapeDecline) : Dialog(title, confirmString, confirmAction, declineString, declineAction, position, allowEscapeDecline) {
+
+}
+void FileDialog::build_content() {
+	ImGui::InputText("Filename: ", m_FileBuffer, BUFFER_SIZE);
+}
+
+NewDialog::NewDialog(const std::string& title, const std::string& confirmString,
+	std::function<void()> confirmAction,
+	const std::string& declineString,
+	std::function<void()> declineAction,
+	const math::Rect& position,
+	bool allowEscapeDecline) : Dialog(title, confirmString, confirmAction, declineString, declineAction, position, allowEscapeDecline) {
+
+}
+void NewDialog::build_content() {
+	ImGui::InputInt2("Size", m_size);
+	ImGui::ColorPicker3("Background Color", m_color);
+}
+
+bool Dialog::update(input::Input& m_Input) {
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+
+	ImGui::SetNextWindowPos({ (float)m_location.x, (float)m_location.y });
+	ImGui::SetNextWindowSize({ (float)m_location.width, (float)m_location.height });
+
+	if (ImGui::Begin(m_title.c_str(), (bool*)nullptr, flags)) {
+		bool ret = false;
+		build_content();
+
+		if (ImGui::Button(m_confirm.c_str())) {
+			m_confirmAction();
+			ret = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel") || (m_allowEscape && m_Input.key_check_just_pressed(input::Key::Escape))) {
+			m_declineAction();
+			ret = true;
+		}
+		ImGui::End();
+
+		return ret;
+	}
+
+	return false;
+}
+
+
 // TODO: Fix Undo Steps
 ImageEditor::ImageEditor() :
 	graphics::WindowBase(&m_Renderer, "IMGui Renderer", graphics::Resolution{ 640, 480, SCALE, SCALE }),
@@ -21,13 +89,54 @@ ImageEditor::ImageEditor() :
 	m_CurrentTool = 0;
 	m_Texture = new graphics::Texture{ 32, 32 };
 	m_Mask = new graphics::Texture{ 32, 32 };
-
 	for (u32 i = 0; i < 32 * 32; i++) {
 		m_Mask->data()[i] = {255, 255, 255, 64};
 	}
 
 	m_Texture->GetContext().Clear({ 255, 255, 255, 255 });
 
+	input::Action undo;
+	undo.begin_key_combo_option();
+	undo.add_key_option(input::Key::Z, input::ActionStateType::JustPressed);
+	undo.add_key_option(input::Key::LeftControl);
+	undo.end_key_combo_option();
+
+	input::Action redo;
+	redo.begin_key_combo_option();
+	redo.add_key_option(input::Key::Z, input::ActionStateType::JustPressed);
+	redo.add_key_option(input::Key::LeftShift);
+	redo.add_key_option(input::Key::LeftControl);
+	redo.end_key_combo_option();
+
+
+	input::Action save;
+	save.begin_key_combo_option();
+	save.add_key_option(input::Key::S, input::ActionStateType::JustPressed);
+	save.add_key_option(input::Key::LeftControl);
+	save.end_key_combo_option();
+
+	input::Action load;
+	load.begin_key_combo_option();
+	load.add_key_option(input::Key::O, input::ActionStateType::JustPressed);
+	load.add_key_option(input::Key::LeftControl);
+	load.end_key_combo_option();
+
+	input::Action _new;
+	_new.begin_key_combo_option();
+	_new.add_key_option(input::Key::N, input::ActionStateType::JustPressed);
+	_new.add_key_option(input::Key::LeftControl);
+	_new.end_key_combo_option();
+
+	m_actions.add_action("undo", undo);
+	m_actions.add_action("redo", redo);
+	m_actions.add_action("save", save);
+	m_actions.add_action("load", load);
+	m_actions.add_action("new", _new);
+	m_actions.add_action("ch_brush", { { input::Key::P, input::ActionStateType::JustPressed }, { input::Key::K1, input::ActionStateType::JustPressed } });
+	m_actions.add_action("ch_eyedropper", { { input::Key::I, input::ActionStateType::JustPressed }, { input::Key::K2, input::ActionStateType::JustPressed } });
+	m_actions.add_action("ch_flood", { {input::Key::F, input::ActionStateType::JustPressed }, { input::Key::K3, input::ActionStateType::JustPressed } });
+	m_actions.add_action("ch_blend", { {input::Key::B, input::ActionStateType::JustPressed }, { input::Key::K4, input::ActionStateType::JustPressed } });
+	m_actions.add_action("ch_mask", { {input::Key::M, input::ActionStateType::JustPressed }, { input::Key::K5, input::ActionStateType::JustPressed } });
 }
 ImageEditor::~ImageEditor() {
 	for (u64 i = 0; i < m_Tools.size(); i++) {
@@ -166,46 +275,118 @@ bool ImageEditor::OnUserInit() {
 	}
 		});
 
-
 	push_undo_step();
+
+	m_Tools[m_CurrentTool]->start(*this);
 
 	return true;
 }
+
+void ImageEditor::set_tool(u32 tool) {
+	m_Tools[m_CurrentTool]->end(*this);
+	m_Tools[tool]->start(*this);
+	m_CurrentTool = tool;
+}
+
 bool ImageEditor::OnUserUpdate(double delta) {
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	if (m_Input->key_check_just_pressed(input::Key::Z) && m_Input->key_check_pressed(input::Key::LeftControl)) {
-		if (m_Input->key_check_pressed(input::Key::LeftShift)) {
+	m_actions.update(*m_Input);
+
+	i32 width = 400;
+	i32 height = 200;
+	i32 center_x = m_Size.width / 2;
+	i32 center_y = m_Size.height / 2;
+
+	if (m_actions.is_activated("save")) {
+		m_dialog = new FileDialog("Save", "Save", [&]() {
+			m_Texture->save(((FileDialog*)m_dialog)->m_FileBuffer);
+			}, "Cancel", []() {
+
+			},
+			{ center_x, center_y, width, height });
+	}
+	else if (m_actions.is_activated("load")) {
+		m_dialog = new FileDialog("Load", "Load", [&]() {
+			m_Texture->load(((FileDialog*)m_dialog)->m_FileBuffer);
+			}, "Cancel", []() {
+
+			},
+			{ center_x, center_y, width, height });
+	}
+	else if (m_actions.is_activated("new")) {
+		width = 600;
+		height = 600;
+
+		m_dialog = new NewDialog("New", "Create", [&]() {
+
+			NewDialog* dialog = (NewDialog*)m_dialog;
+
+			delete m_Texture;
+			m_Texture = new graphics::Texture{ (u32)dialog->m_size[0], (u32)dialog->m_size[1]};
+			graphics::PrimitiveContext2D ctx = m_Texture->GetContext();
+
+			ctx.Clear(graphics::Color::from_rgb_vec({ dialog->m_color[0], dialog->m_color[1], dialog->m_color[2] }));
+
+			delete m_Mask;
+			m_Mask = new graphics::Texture{ (u32)dialog->m_size[0], (u32)dialog->m_size[1] };
+			ctx = m_Mask->GetContext();
+
+			ctx.Clear({ 255, 255, 255, 64 });
+
+			}, "Cancel", []() {
+
+			},
+			{ center_x, center_y, width, height });
+
+		NewDialog* d = (NewDialog*)m_dialog;
+		d->m_size[0] = (i32)m_Texture->width();
+		d->m_size[1] = (i32)m_Texture->height();
+	}
+
+
+	if (m_dialog != nullptr) {
+		if (m_dialog->update(*m_Input)) {
+			delete m_dialog;
+			m_dialog = nullptr;
+		}
+	}
+	else {
+		if (m_actions.is_activated("redo")) {
 			redo();
 		}
-		else {
+
+		if (m_actions.is_activated("undo")) {
 			undo();
 		}
-	}
 
-	m_Tools[m_CurrentTool]->update(*this, *this->input());
+		m_Tools[m_CurrentTool]->update(*this, *this->input());
 
-	if (m_Input->mouse_wheel() != 0) {
-		m_Zoom += m_Input->mouse_wheel();
-		if (m_Zoom < 1) m_Zoom = 1;
-		if (m_Zoom > 10) m_Zoom = 10;
-	}
+		if (m_Input->mouse_wheel() != 0) {
+			m_Zoom += m_Input->mouse_wheel();
+			if (m_Zoom < 1) m_Zoom = 1;
+			if (m_Zoom > 10) m_Zoom = 10;
+		}
 
-	if (m_Input->key_check_just_pressed(input::Key::F)) {
-		m_CurrentTool = 2;
+		//if (m_Input->key_check_just_pressed(input::Key::F)) {
+		if (m_actions.is_activated("ch_flood")) {
+			set_tool(2);
+		}
+		else if (m_actions.is_activated("ch_brush")) {
+			set_tool(0);
+		}
+		else if (m_actions.is_activated("ch_eyedropper")) {
+			set_tool(1);
+		}
+		else if (m_actions.is_activated("ch_blend")) {
+			set_tool(3);
+		}
+		else if (m_actions.is_activated("ch_mask")) {
+			set_tool(4);
+		}
 	}
-	else if (m_Input->key_check_just_pressed(input::Key::P)) {
-		m_CurrentTool = 0;
-	}
-	else if (m_Input->key_check_just_pressed(input::Key::I)) {
-		m_CurrentTool = 1;
-	}
-	else if (m_Input->key_check_just_pressed(input::Key::B)) {
-		m_CurrentTool = 3;
-	}
-
 	return true;
 }
 void ImageEditor::OnUserRender(graphics::RendererBase* _) {
@@ -220,7 +401,7 @@ void ImageEditor::OnUserRender(graphics::RendererBase* _) {
 	ImGui::Begin("Tools");
 	for (u32 i = 0; i < m_Tools.size(); i++) {
 		if (ImGui::Button(m_Tools[i]->get_name())) {
-			m_CurrentTool = i;
+			set_tool(i);
 		}
 	}
 	ImGui::Checkbox("Show Grid", &m_showGrid);
@@ -233,7 +414,7 @@ void ImageEditor::OnUserRender(graphics::RendererBase* _) {
 
 	m_Renderer.Blit(m_Size.width / 2 - m_Texture->width() - 10, 10, *m_Texture);
 
-
+	m_Tools[m_CurrentTool]->render_tool_info(*this, m_Renderer);
 	m_Tools[m_CurrentTool]->render_tool_options(*this);
 
 }

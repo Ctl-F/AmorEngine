@@ -20,6 +20,7 @@ typedef float real;
 typedef double real;
 #endif
 
+#define CLASS_INVOKE(instance, method, ...) (instance.*(method))(__VA_ARGS__) 
 
 namespace amor {
 	namespace logging {

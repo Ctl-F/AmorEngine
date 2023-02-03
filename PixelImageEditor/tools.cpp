@@ -2,44 +2,29 @@
 
 #include <imgui.h>
 
+void Tool::render_tool_info(ImageEditor& editor, graphics::PixelRenderer& renderer) { }
+void Tool::start(ImageEditor& editor) {}
+void Tool::end(ImageEditor& editor) {}
+
+
+
+
 void Brush::update(ImageEditor& editor, input::Input& input) {
 	math::Vec3f cell = editor.get_pixel();
 	graphics::PrimitiveContext2D ctx = editor.get_tex()->GetContext();
 	graphics::Color color;
 
 	if (cell.z == 0 && editor.in_mask((i32)cell.x, (i32)cell.y)) {
+        bool do_draw = false;
+
 		if (input.mouse_check_pressed(input::MouseButton::Left) && (action_detail == input::MouseButton::FIMKEY || action_detail == input::MouseButton::Left)) {
 			if (input.mouse_check_just_pressed(input::MouseButton::Left)) {
 				action_just_started = false;
 				action_detail = input::MouseButton::Left;
 			}
 
+            do_draw = true;
 			color = graphics::Color::from_rgb_vec({ editor.m_PrimaryRgbColor[0],  editor.m_PrimaryRgbColor[1],  editor.m_PrimaryRgbColor[2] });
-
-            if (m_brushSize == 1) {
-                ctx.Draw((i32)cell.x, (i32)cell.y, color);
-            }
-            else if (m_brushSize == 2) {
-                ctx.Draw((i32)cell.x, (i32)cell.y, color);
-
-                if(editor.in_mask((i32)cell.x + 1, (i32) cell.y)) ctx.Draw((i32)cell.x+1, (i32)cell.y, color);
-                if (editor.in_mask((i32)cell.x, (i32)cell.y + 1)) ctx.Draw((i32)cell.x, (i32)cell.y+1, color);
-                if (editor.in_mask((i32)cell.x + 1, (i32)cell.y + 1)) ctx.Draw((i32)cell.x+1, (i32)cell.y+1, color);
-            }
-            else {
-                i32 size = m_brushSize - 2;
-                for (i32 ioff = -size; ioff <= size; ioff++) {
-                    for (i32 joff = -size; joff <= size; joff++) {
-                        if (m_isCircle && (ioff * ioff + joff * joff) > size * size) continue;
-                        if (!editor.in_mask((i32)cell.x + ioff, (i32)cell.y + joff)) continue;
-
-                        if (m_modulate && (((ioff * ioff) + (joff * joff)) & m_modulo) % m_modulo != 0) continue;
-
-                        ctx.Draw((i32)cell.x + ioff, (i32)cell.y + joff, color);
-                    }
-                }
-            }
-			
 		}
 		else if (input.mouse_check_pressed(input::MouseButton::Right) && (action_detail == input::MouseButton::FIMKEY || action_detail == input::MouseButton::Right)) {
 			if (input.mouse_check_just_pressed(input::MouseButton::Right)) {
@@ -47,8 +32,11 @@ void Brush::update(ImageEditor& editor, input::Input& input) {
 				action_detail = input::MouseButton::Right;
 			}
 
+            do_draw = true;
 			color = graphics::Color::from_rgb_vec({ editor.m_SecondaryRgbColor[0],  editor.m_SecondaryRgbColor[1],  editor.m_SecondaryRgbColor[2] });
+		}
 
+        if (do_draw) {
             if (m_brushSize == 1) {
                 ctx.Draw((i32)cell.x, (i32)cell.y, color);
             }
@@ -72,7 +60,7 @@ void Brush::update(ImageEditor& editor, input::Input& input) {
                     }
                 }
             }
-		}
+        }
 	}
 
 	if (input.mouse_check_just_released(action_detail)) {
@@ -80,6 +68,54 @@ void Brush::update(ImageEditor& editor, input::Input& input) {
         action_detail = input::MouseButton::FIMKEY;
 		editor.push_undo_step();
 	}
+
+    m_brushSize += input.key_check_just_pressed(input::Key::RightBracket) - input.key_check_just_pressed(input::Key::LeftBracket);
+    m_brushSize = math::clamp(m_brushSize, 1, 10);
+}
+
+void Brush::render_tool_info(ImageEditor& editor, graphics::PixelRenderer& renderer) {
+    math::Vec3f cell = editor.get_pixel();
+    graphics::Color color{ 10, 10, 10, 10 };
+    if (cell.z == 0.0f) {
+        auto draw = [&](i32 x, i32 y) {
+            auto zoom = editor.get_zoom();
+            auto origin = editor.calculate_image_location().origin();
+            x = origin.x + (x * zoom);
+            y = origin.y + (y * zoom);
+
+            if (editor.get_zoom() < 3) {
+                renderer.Draw(x, y, color);
+            }
+            else {
+                renderer.FillRect(x, y, editor.get_zoom(), editor.get_zoom(), color);
+            }
+        };
+
+        renderer.SetBlending(graphics::BlendMode::Normal);
+
+        if (m_brushSize == 1) {
+            draw((i32)cell.x, (i32)cell.y);
+        }
+        else if (m_brushSize == 2) {
+            draw((i32)cell.x, (i32)cell.y);
+            draw((i32)cell.x + 1, (i32)cell.y);
+            draw((i32)cell.x, (i32)cell.y + 1);
+            draw((i32)cell.x + 1, (i32)cell.y + 1);
+        }
+        else {
+            i32 size = m_brushSize - 2;
+            for (i32 ioff = -size; ioff <= size; ioff++) {
+                for (i32 joff = -size; joff <= size; joff++) {
+                    if (m_isCircle && (ioff * ioff + joff * joff) > size * size) continue;
+                    if (m_modulate && (((ioff * ioff) + (joff * joff)) & m_modulo) % m_modulo != 0) continue;
+
+                    draw((i32)cell.x + ioff, (i32)cell.y + joff);
+                }
+            }
+        }
+
+        renderer.SetBlending(graphics::BlendMode::None);
+    }
 }
 
 void Brush::render_tool_options(ImageEditor& editor) {
@@ -234,7 +270,7 @@ void Blend::update(ImageEditor& editor, input::Input& input) {
         }
 
         if (input.mouse_check_pressed(input::MouseButton::Left) && cell != m_pMouse) {
-            m_Matrix.apply(editor, (i32)cell.x, (i32)cell.y, ctx);
+            m_Matrix.apply(editor, (i32)cell.x, (i32)cell.y, ctx, m_wrap);
             m_pMouse = cell;
         }
 
@@ -245,8 +281,12 @@ void Blend::update(ImageEditor& editor, input::Input& input) {
 void Blend::render_tool_options(ImageEditor& editor) {
     ImGui::Begin("Smudge Settings");
 
-    ImGui::InputInt("Radius", &m_blendRadius);
-    ImGui::InputFloat("Strength", &m_blendStrength);
+ /*   ImGui::InputInt("Radius", &m_blendRadius);
+    ImGui::InputFloat("Strength", &m_blendStrength);*/
+
+    ImGui::Text("Edge Policy"); ImGui::SameLine();
+    ImGui::RadioButton("Clamp", &m_wrap, 0); ImGui::SameLine();
+    ImGui::RadioButton("Wrap", &m_wrap, 1);
 
     ImGui::End();
 }
@@ -278,18 +318,37 @@ BlendMatrix::BlendMatrix(BlendSize size) : strength(nullptr) {
 
 }
 
-void BlendMatrix::apply(ImageEditor& editor, i32 x, i32 y, graphics::PrimitiveContext2D& ctx) {
+void BlendMatrix::apply(ImageEditor& editor, i32 x, i32 y, graphics::PrimitiveContext2D& ctx, bool wrap) {
     u32 index = 0;
 
     math::Vec3f color{ 0 };
     math::Vec3f core_color = ctx.Get(x, y).to_rgb_vec();
     for (i32 yoff = -1; yoff <= 1; yoff++) {
         for (i32 xoff = -1; xoff <= 1; xoff++) {
-            if ((x + xoff < 0) || (x + xoff >= ctx.width()) || (y + yoff < 0) || (y + yoff >= ctx.height()) || !editor.in_mask(x + xoff, y + yoff)) {
-                color += core_color * strength[index];
+            if (wrap) {
+                i32 xx, yy;
+                xx = x + xoff;
+                yy = y + yoff;
+
+                if (xx < 0) { xx = ctx.width() - 1; }
+                if (xx >= ctx.width()) { xx = 0; }
+                if (yy < 0) { yy = ctx.height() - 1; }
+                if (yy > ctx.height()) { yy = 0; }
+
+                if (!editor.in_mask(xx, yy)) {
+                    color += core_color * strength[index];
+                }
+                else {
+                    color += ctx.Get(xx, yy).to_rgb_vec() * strength[index];
+                }
             }
             else {
-                color += ctx.Get(x + xoff, y + yoff).to_rgb_vec() * strength[index];
+                if ((x + xoff < 0) || (x + xoff >= ctx.width()) || (y + yoff < 0) || (y + yoff >= ctx.height()) || !editor.in_mask(x + xoff, y + yoff)) {
+                    color += core_color * strength[index];
+                }
+                else {
+                    color += ctx.Get(x + xoff, y + yoff).to_rgb_vec() * strength[index];
+                }
             }
             index++;
         }
@@ -304,19 +363,100 @@ BlendMatrix::~BlendMatrix() {
 }
 
 
+void MaskBrush::start(ImageEditor& editor) {
+    bool& show = editor.show_mask_setting();
+    m_wasShowMask = show;
+    show = true;
+}
+void MaskBrush::end(ImageEditor& editor) {
+    editor.show_mask_setting() = m_wasShowMask;
+}
 
 void MaskBrush::update(ImageEditor& editor, input::Input& input) {
 	math::Vec3f cell = editor.get_pixel();
 	graphics::PrimitiveContext2D ctx = editor.get_mask()->GetContext();
-
+    graphics::Color color;
 	if (cell.z == 0) {
+        bool do_action = false;
+
 		if (input.mouse_check_pressed(input::MouseButton::Left)) {
-            ctx.Draw((i32)cell.x, (i32)cell.y, { 255, 255, 255, 64 });
-		}
+         //   ctx.Draw((i32)cell.x, (i32)cell.y, { 255, 255, 255, 64 });
+            color = { 255, 255, 255, 64 };
+            do_action = true;
+        }
 		else if (input.mouse_check_pressed(input::MouseButton::Right)) {
-			ctx.Draw((i32)cell.x, (i32)cell.y, { 0, 0, 0, 64 });
-		}
+		//	ctx.Draw((i32)cell.x, (i32)cell.y, { 0, 0, 0, 64 });
+            color = { 0, 0, 0, 64 };
+            do_action = true;
+        }
+
+        if (do_action) {
+            if (m_brushSize == 1) {
+                ctx.Draw((i32)cell.x, (i32)cell.y, color);
+            }
+            else if (m_brushSize == 2) {
+                ctx.Draw((i32)cell.x, (i32)cell.y, color);
+                ctx.Draw((i32)cell.x + 1, (i32)cell.y, color);
+                ctx.Draw((i32)cell.x, (i32)cell.y + 1, color);
+                ctx.Draw((i32)cell.x + 1, (i32)cell.y + 1, color);
+            }
+            else {
+                i32 size = m_brushSize - 2;
+                for (i32 ioff = -size; ioff <= size; ioff++) {
+                    for (i32 joff = -size; joff <= size; joff++) {
+                        if (m_isCircle && (ioff * ioff + joff * joff) > size * size) continue;
+                        ctx.Draw((i32)cell.x + ioff, (i32)cell.y + joff, color);
+                    }
+                }
+            }
+        }
 	}
+
+    m_brushSize += input.key_check_just_pressed(input::Key::RightBracket) - input.key_check_just_pressed(input::Key::LeftBracket);
+    m_brushSize = math::clamp(m_brushSize, 1, 10);
+}
+
+void MaskBrush::render_tool_info(ImageEditor& editor, graphics::PixelRenderer& renderer) {
+    math::Vec3f cell = editor.get_pixel();
+    graphics::Color color{ 10, 100, 100, 10 };
+    if (cell.z == 0.0f) {
+        auto draw = [&](i32 x, i32 y) {
+            auto zoom = editor.get_zoom();
+            auto origin = editor.calculate_image_location().origin();
+            x = origin.x + (x * zoom);
+            y = origin.y + (y * zoom);
+
+            if (editor.get_zoom() < 3) {
+                renderer.Draw(x, y, color);
+            }
+            else {
+                renderer.FillRect(x, y, editor.get_zoom(), editor.get_zoom(), color);
+            }
+        };
+
+        renderer.SetBlending(graphics::BlendMode::Normal);
+
+        if (m_brushSize == 1) {
+            draw((i32)cell.x, (i32)cell.y);
+        }
+        else if (m_brushSize == 2) {
+            draw((i32)cell.x, (i32)cell.y);
+            draw((i32)cell.x + 1, (i32)cell.y);
+            draw((i32)cell.x, (i32)cell.y + 1);
+            draw((i32)cell.x + 1, (i32)cell.y + 1);
+        }
+        else {
+            i32 size = m_brushSize - 2;
+            for (i32 ioff = -size; ioff <= size; ioff++) {
+                for (i32 joff = -size; joff <= size; joff++) {
+                    if (m_isCircle && (ioff * ioff + joff * joff) > size * size) continue;
+                    draw((i32)cell.x + ioff, (i32)cell.y + joff);
+                }
+            }
+        }
+
+        renderer.SetBlending(graphics::BlendMode::None);
+    }
 }
 
 void MaskBrush::render_tool_options(ImageEditor& editor) {
@@ -330,7 +470,27 @@ void MaskBrush::render_tool_options(ImageEditor& editor) {
         editor.get_mask()->GetContext().Clear({ 0, 0, 0, 64 });
     }
 
+    if (ImGui::Button("Invert Mask")) {
+        invert(*editor.get_mask());
+    }
+
+    ImGui::SliderInt("Brush Size", &m_brushSize, 1, 10);
+    ImGui::Checkbox("Circle Brush", &m_isCircle);
+
 	ImGui::End();
+}
+
+void MaskBrush::invert(graphics::Texture& texture) {
+    u64 size = texture.width() * texture.height();
+    graphics::Color* data = texture.data();
+    for (u64 i = 0; i < size; i++) {
+        if (data[i].r == 255) {
+            data[i] = { 0, 0, 0, 64 };
+        }
+        else {
+            data[i] = { 255, 255, 255, 64 };
+        }
+    }
 }
 
 const char* MaskBrush::get_name() {
