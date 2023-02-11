@@ -71,7 +71,7 @@ namespace amor {
 
 		private:
 			u32 m_VAO, m_VBO;
-			u32 m_ProgramID;
+			utils::opengl::Shader m_ProgramID;
 			u32 m_glFrameTexture;
 			Color* m_PixelData;
 			size_t m_PixelDataLength;
@@ -190,14 +190,14 @@ namespace amor {
 		void PixelRenderer::UpdateShader() {
 			logging::GetInstance()->info("Recompiling shader", "PixelRenderer");
 			
-			u32 currentProgramID = m_ProgramID;
+			u32 currentProgramID = m_ProgramID.internal_id();
 
 			try {
 				CompileShader();
 			}
 			catch (std::runtime_error& e) {
 				logging::GetInstance()->error("Failed to recompile shader, falling back", "PixelRenderer");
-				m_ProgramID = currentProgramID;
+				m_ProgramID.internal_id() = currentProgramID;
 				return;
 			}
 
@@ -308,23 +308,23 @@ namespace amor {
 			pixelShader.WriteFragment();
 
 			m_ProgramID = pixelShader.CompileGlProgram();
-			if (m_ProgramID == 0) {
+			if (!m_ProgramID.good()) {
 				logging::GetInstance()->fail("Failed to compile default shader", "PixelRenderer");
 				throw std::runtime_error("comiler error");
 			}
 			logging::GetInstance()->info(std::string("Applied ") + std::to_string(m_Effects.size()) + std::string(" custom effects to the pixel shader"), "PixelRenderer");
 			logging::GetInstance()->info("Pixel Shader compiled", "PixelRenderer");
 
-			glUseProgram(m_ProgramID);
+			m_ProgramID.bind();
 
-			m_uniTexture = glGetUniformLocation(m_ProgramID, "framebuffer");
+			m_uniTexture = glGetUniformLocation(m_ProgramID.internal_id(), "framebuffer");
 		}
 
 		void PixelRenderer::DeinitializeGraphicsPipeline(WindowBase* window) {
 			glDeleteVertexArrays(1, &m_VAO);
 			glDeleteBuffers(1, &m_VBO);
 
-			glDeleteProgram(m_ProgramID);
+			//glDeleteProgram(m_ProgramID);
 		}
 
 		void PixelRenderer::PrepareFrame(WindowBase* win) {
@@ -336,7 +336,7 @@ namespace amor {
 			glGenerateMipmap(GL_TEXTURE_2D);
 
 			glBindTexture(GL_TEXTURE_2D, m_glFrameTexture);
-			glUseProgram(m_ProgramID);
+			m_ProgramID.bind();
 			glUniform1i(m_uniTexture, 0);
 			glBindVertexArray(m_VAO);
 

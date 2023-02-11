@@ -6,6 +6,8 @@
 #define DEFINE_RENDERER_PIXEL
 #include "PixelRenderer.h"
 
+#include "Util.h"
+
 using namespace amor;
 using amor::graphics::WindowBase;
 
@@ -155,9 +157,21 @@ private:
 };
 
 
+static void deallocator(int& val) {
+	logging::GetInstance()->info("Deleting instance number: " + std::to_string(val));
+}
+
 int main(int argc, char** argv) {
 	logging::GetInstance()->OutputMode() = logging::LOG_STDOUT;
 	amor::graphics::PixelRenderer mainRenderer(800, 600, 1, 1);
+
+	amor::util::CountedRef<int, deallocator> first_Ref(10);
+	amor::util::CountedRef<int, deallocator> second_Ref(first_Ref);
+
+	amor::util::CountedRef<int, deallocator> third_Ref(first_Ref);
+
+	logging::GetInstance()->info("My value is " + std::to_string(*third_Ref));
+
 
 	MainWindow mainWin(&mainRenderer, "Hello World", 800, 600);
 	mainWin.show();

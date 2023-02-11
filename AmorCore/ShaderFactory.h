@@ -1,21 +1,44 @@
 #pragma once
 #include "Common.h"
+#include <memory>
+#include "OpenGl.h"
+#include "Util.h"
 
 namespace amor {
 	namespace graphics {
 		namespace utils {
 			namespace opengl {
-				enum class GlPrimitive {
-					Float,
-					Int,
-					Vec2,
-					Vec3,
-					Vec4,
-					Sampler2D,
-				};
+				
+				class VertexClass;
+
+				void shader_deallocator(u32& program_id);
 
 				constexpr i32 AUTO_LAYOUT = -1;
 				constexpr i32 NO_LAYOUT = -2;
+
+				class Shader {
+					friend class ShaderFactory;
+				public:
+					Shader();
+					Shader(const Shader& other);
+					Shader(Shader&& other) noexcept;
+					~Shader();
+
+					Shader& operator=(const Shader& other);
+					Shader& operator=(Shader&& other) noexcept;
+
+					void bind() const;
+					void unbind() const;
+					
+					bool good() const;
+					u32& internal_id();
+
+				protected:
+					Shader(u32 program_id);
+
+				private:
+					util::CountedRef<u32, shader_deallocator> m_glProgram;
+				};
 
 				class ShaderFactory
 				{
@@ -36,11 +59,13 @@ namespace amor {
 					void WriteVertex();
 					void WriteFragment();
 
+					void BindVertexClass(VertexClass* _class, bool explicitLayout = true);
+					void InsertFromSource(const char* filename);
 
 					std::string GetVertex() const;
 					std::string GetFragment() const;
 
-					u32 CompileGlProgram() const;
+					Shader CompileGlProgram() const;
 
 				protected:
 					const std::string& PrimitiveString(GlPrimitive primitive) const;
@@ -51,6 +76,8 @@ namespace amor {
 					i32 m_LocCounter;
 					bool m_MainIsOpen, m_MainIsClosed;
 					bool m_VersionIsSpecified;
+					VertexClass* m_boundClass = nullptr;
+					bool m_UseExplicitLayout = true;
 				};
 			}
 		}

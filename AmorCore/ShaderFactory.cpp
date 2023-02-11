@@ -1,14 +1,50 @@
 #include "pch.h"
 #include "ShaderFactory.h"
+#include "Vertex.h"
 
 #include <glad/glad.h>
-
-
 
 namespace amor {
 	namespace graphics {
 		namespace utils {
 			namespace opengl {
+				void shader_deallocator(u32& program_id) {
+					glDeleteProgram(program_id);
+					program_id = 0u;
+				}
+
+				Shader::Shader() : m_glProgram{ 0 } {}
+				Shader::Shader(u32 programID) : m_glProgram{ programID } {}
+				Shader::Shader(const Shader& other) : m_glProgram{ other.m_glProgram } { }
+				Shader::Shader(Shader&& other) noexcept : m_glProgram{ std::move(other.m_glProgram) } { }
+				Shader::~Shader() {
+
+				}
+
+				Shader& Shader::operator=(const Shader& other) {
+					m_glProgram = other.m_glProgram;
+					return *this;
+				}
+				Shader& Shader::operator=(Shader&& other) noexcept {
+					m_glProgram = std::move(other.m_glProgram);
+					return *this;
+				}
+
+				void Shader::bind() const {
+					glUseProgram(*m_glProgram);
+				}
+				void Shader::unbind() const {
+					glUseProgram(0u);
+				}
+
+				bool Shader::good() const {
+					return *m_glProgram != 0;
+				}
+
+				u32& Shader::internal_id() {
+					return *m_glProgram;
+				}
+
 
 				ShaderFactory::ShaderFactory() {
 					m_VertexShader = "";
@@ -27,7 +63,12 @@ namespace amor {
 
 				const std::string& ShaderFactory::PrimitiveString(GlPrimitive primitive) const {
 					static std::string s_Types[]{
-						"float", "int", "vec2", "vec3", "vec4", "sampler2D"
+						"float", "int", "vec2", "vec3", "vec4", "sampler2D",
+							"bool", "bvec2", "bvec3","bvec4",
+							"ivec2", "ivec3", "ivec4",
+							"mat2", "mat2x3", "mat2x4",
+							"mat3x2", "mat3", "mat3x4",
+							"mat4x2", "mat4x3", "mat4",
 					};
 
 					return s_Types[(int)primitive];
@@ -75,6 +116,28 @@ namespace amor {
 					m_Shaderbuffer << string;
 				}
 
+				void ShaderFactory::InsertFromSource(const char* filename) {
+					if (!std::filesystem::exists(filename)) {
+						logging::GetInstance()->error("File '" + std::string(filename) + "' does not exist");
+						return;
+					}
+
+					std::ifstream file(filename);
+					std::string line;
+					if (file.is_open()) {
+						while (file.good()) {
+							std::getline(file, line);
+							m_Shaderbuffer << line << "\n";
+						}
+						file.close();
+					}
+				}
+
+				void ShaderFactory::BindVertexClass(VertexClass* _class, bool explicitLayout) {
+					m_boundClass = _class;
+					m_UseExplicitLayout = explicitLayout;
+				}
+
 				void ShaderFactory::WriteVertex() {
 					if (!m_VersionIsSpecified) {
 						logging::GetInstance()->warn("Shader version does not appear to be specified for vertex shader.", "GLSL");
@@ -117,7 +180,7 @@ namespace amor {
 				}
 
 
-				u32 ShaderFactory::CompileGlProgram() const {
+				Shader ShaderFactory::CompileGlProgram() const {
 					constexpr i32 BUFFER_SIZE = 1024;
 					u32 vID, fID, pID;
 					const i8* sourcePtr = m_VertexShader.c_str();
@@ -151,6 +214,15 @@ namespace amor {
 					pID = glCreateProgram();
 					glAttachShader(pID, vID);
 					glAttachShader(pID, fID);
+
+					if (!m_UseExplicitLayout && m_boundClass != nullptr) {
+						for (size_t i = 0; i < m_boundClass->m_vertexInfo.size(); i++) {
+							glBindAttribLocation(pID, i,
+								std::get<0>(m_boundClass->m_vertexInfo[i]).c_str());
+						}
+					}
+
+					
 					glLinkProgram(pID);
 
 					glDeleteShader(vID);

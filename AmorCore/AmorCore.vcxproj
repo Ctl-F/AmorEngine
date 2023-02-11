@@ -147,11 +147,13 @@
     <ClInclude Include="Graphics.h" />
     <ClInclude Include="Gui.h" />
     <ClInclude Include="Input.h" />
+    <ClInclude Include="OpenGl.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PixelRenderer.h" />
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="ShaderFactory.h" />
     <ClInclude Include="Util.h" />
+    <ClInclude Include="Vertex.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AmorCore.cpp" />
@@ -170,6 +172,7 @@
     <ClCompile Include="ShaderFactory.cpp" />
     <ClCompile Include="stb_image.cpp" />
     <ClCompile Include="Util.cpp" />
+    <ClCompile Include="Vertex.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Notes.txt" />
